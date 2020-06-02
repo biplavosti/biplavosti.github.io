@@ -1,0 +1,229 @@
+<html>
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/sha256.min.js"></script>
+<style type="text/css">
+		#container{
+			overflow: scroll;
+			max-height: 400px; 
+			border: 2px solid;
+		}
+		
+		table {
+			text-align: center;
+			position: relative;
+		}
+
+		th {
+		  background: white;
+		  position: sticky;
+		  top: 0;
+		}
+		
+		.entropy {
+		  width: 100%;
+		  padding: 12px 20px;
+		  margin: 8px 0;
+		  box-sizing: border-box;
+		}
+	</style>
+<body>
+<script>
+
+var txTable;
+var web3;
+
+var selectedChain = "";
+var selectedBlock = 0;
+var totalTxSize = 0;
+var fram = 0;
+var inProgressFram = -1;
+
+var chainEndPoint = {
+	'btc' : 'https://api.blockcypher.com/v1/btc/main/',
+	'eth' : 'https://api.blockcypher.com/v1/eth/main/',
+	'ltc' : 'https://api.blockcypher.com/v1/ltc/main/',
+	'doge': 'https://api.blockcypher.com/v1/doge/main/',
+	'dash': 'https://api.blockcypher.com/v1/dash/main/'
+}
+
+$(document).ready(function(){
+	$("#totalTxCount").val(0);
+	$("#container").scroll(function () {
+	//console.log("hello");
+            var $this = $(this);
+            var height = this.scrollHeight - $this.height(); // Get the height of the div
+			//console.log(height);
+            var scroll = $this.scrollTop(); // Get the vertical scroll position
+			//console.log(scroll);
+
+            var isScrolledToEnd = (scroll + 5 >= height);
+
+            //$(".scroll-pos").text(scroll);
+            //$(".scroll-height").text(height);
+
+            if (isScrolledToEnd && fram < totalTxSize && inProgressFram !== fram) {
+				inProgressFram = fram;
+                var additionalContent = getBlockTransactions(true); // Get the additional content
+
+                //$this.append(additionalContent); // Append the additional content
+
+            }
+        });
+});
+
+function radioButtonClicked() {
+	var radioValue = $("input[type='radio'][name='tx_radio']:checked").attr('id');
+	console.log(radioValue);
+	var values = radioValue.split("-");
+	var id = values[0];
+	var hash = values[1];
+	$("#selectedTxId").val(id);
+	$("#selectedTx").val(hash);
+	$("#seed").val("");
+	$("#preentropy").val("");
+	
+	console.log($("#selectedTx").val());
+	//$("#seed").val(radioValue);
+}
+function getTotalBlocks() {
+}
+
+function getBlockTransactions(scrolled) {
+	var chain = $("#platform").find('option:selected').attr('id');
+	var blockNumber = $("#blockNumber").val();
+	if(chain !== selectedChain || blockNumber !== selectedBlock || scrolled) {
+		if(!scrolled) {
+			fram = 0;
+			totalTxSize = 0;
+			$("#txBody tr").remove();
+			$("#totalTxCount").val(0);
+			$("#selectedTxId").val("");
+			$("#selectedTx").val("");
+			$("#seed").val("");
+			$("#preentropy").val("");
+		}
+		//console.log("fram = " + fram);
+		var end = chainEndPoint[chain] + "blocks/" + blockNumber + "?txstart=" + fram + "&limit=" + 500;
+		$.ajax({
+			url: end,
+			type: 'GET',
+			success: function(res) {
+				totalTxSize = res.n_tx;
+				$("#totalTxCount").val(totalTxSize);
+				console.log("end = " + end);
+				console.log(res.txids.length);
+				console.log("first = " + res.txids[0]);
+				if(totalTxSize == 0) {
+					$("#txTable").append("<tr colspan='3'><td align='center'>No Records</td></tr>");
+				}
+				for(var i=0;i<res.txids.length;i++){
+					$("#txTable").append("<tr><td><input type='radio' onclick = 'radioButtonClicked()' class='class_tx_radio' name='tx_radio' id=" + (fram + i) + "-" + res.txids[i] + "><td>" + (fram + i) + "</td><td>"+ res.txids[i] + "</td></tr>");
+					//console.log(res.txids[i]);
+				}
+				//txTable.draw();
+				selectedChain = chain;
+				selectedBlock = blockNumber;
+				fram += res.txids.length;
+				
+			}
+		});
+	}
+	
+}
+
+function calculateSeed(wordCount) {
+	//console.log("hello");
+	var txHash = $("#selectedTx").val();
+	//console.log(txHash);
+	var salt = $("#salt").val();
+	//console.log(salt);
+	var preseedString = txHash + salt;
+	$("#preentropy").val(preseedString);
+	var seed = "";
+	
+	//for(var i=0;i<2048;i++) {
+		seed = CryptoJS.SHA256(preseedString).toString();
+	//}
+	if(wordCount == 12) {
+		seed = seed.substring(0,32);
+	}
+	
+	//console.log(seed);
+	$("#seed").val(seed);
+	//$(".use-entropy").attr("checked", true);
+	//$("#entropy").val(seed);
+}
+</script>
+<div>
+<div>
+<h1 align="center"> Lockdown Entropy </h1>
+<p>
+There are hundreds of blockchains out there. Hundreds of blockchains have billions of transactions. 
+The idea is to randomly select a transaction from randomly chosen blockchain and use the hash of the transaction + passphrase
+as entropy to get your 12 or 24 BIP39 Mnemonic Codes. <br>
+Just remember the blockchain you choose, block number, transaction index (starting with zero) and your passphrase <br>
+I call this wallet Lockdown Entropy/BrainWallet 3.0 as it is something I thought of and designed during 2020 Covid-19 Lockdown period <br>
+and also because the entropy(and eventually private key) is locked down somewhere in the blockchains 
+and Brainwallet because you can easily memorize (store in your brain) or visually practice it until you remember.
+<b>This project is just for fun and in no way you should consider this for actual wallet. Just Play around and have fun.<br>
+USE AT YOUR OWN RISK. </b>
+<br>
+<br>
+I would like to thank <a href="https://www.blockcypher.com/">BlockCypher</a> team for their generous free read only apis.<br>
+Also, I would like to thank Mr. Ian Coleman for his super awesome online <a href="https://iancoleman.io/bip39/">BIP39 Mnemonic Code Converter</a><br>
+</p>
+</div>
+<div>
+	Choose a seed blockchain : 
+	<select id="platform">
+		<option id = "btc">Bitcoin</option>
+		<option id = "ltc">Litecoin</option>
+		<option id = "doge">Dogecoin</option>
+		<option id = "eth">Ethereum</option>
+		<option id = "dash">Dash</option>
+	</select>
+</div>
+<div>
+Enter a seed block number : <input type="text" id="blockNumber"/> <button onclick=getBlockTransactions(false);>Go</button>
+</div>
+<br>
+<div>
+Total TXs : <input type="text" id="totalTxCount" readonly /><br><br>
+	<div id = "container">
+	<table id="txTable" width="50%">
+	<thead>
+		<tr>
+		<th></th>
+		<th>TX ID</th>
+		<th>TX Hash</th>
+		</tr>
+		</thead>
+	<tbody id = "txBody">
+	</tbody>
+	</table>
+	</div>
+</div><br>
+<div>
+<br><br>
+You Selected transaction: <br>
+ID : <input type="text" id="selectedTxId" readonly class="entropy" /> <br>
+Hash : <input type="text" id="selectedTx" readonly class="entropy" /><br><br>
+Enter a Passphrase (Salt) : <input type="text" id="salt"/><br><br> 
+Select Entropy for : <input type="radio" name="ent_radio" onclick="calculateSeed(12)">12 words</input> <input type="radio" name="ent_radio" onclick="calculateSeed(24)">24 words</input>
+<br><br>
+Pre-entropy String (Selected TX Hash + Salt) : <input type="text" class="entropy" id="preentropy" readonly /><br><br>
+Your entropy : <input type="text" id="seed" class="entropy" readonly /> <br><br>
+Now, down below in Mnemonic Code Converter <br>
+Select the checkbox which says Show Entropy Details <br>
+Paste the above entropy into the textbox which says Entropy <br>
+Down more below in the textbox BIP39 Mnemonic is your (12 or 24) Mnemonic codes <br>
+Use this Mnemonic words in your wallet at your own risk<br>
+Remember what blockchain, block number, transaction index (starting with zero) and your passphrase <br><br>
+</div>
+<div>
+<iframe src="https://iancoleman.io/bip39/" width="1200px" height="600px" </iframe>
+</div>
+</div>
+</body>
+</html>
